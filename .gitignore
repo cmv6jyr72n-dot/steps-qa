@@ -1,0 +1,13 @@
+*.pyc
+__pycache__/
+.pylib/
+*.txt
+*.zip
+*.exe
+bore*
+cloudflared*
+tunnel*
+_fix*
+_up*
+_deploy*
+_b64*
