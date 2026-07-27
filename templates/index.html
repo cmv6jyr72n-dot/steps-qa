@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>STEPS 产品问答系统</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div class="app">
+  <header class="header">
+    <div class="logo-box">
+      <div class="logo-icon">S</div>
+      <span class="logo-text">STEPS </span>
+    </div>
+    <div class="subtitle">Product K&amp;A System</div>
+  </header>
+
+  <main class="main">
+    <div class="hero">
+      <h2>内部产品资料忯期日工</h2>
+      <p>迓入关键词，即卿忯日所需产品的规格、价格、敽工讳厌等调整</p>
+    </div>
+
+    <div class="search-wrap">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="该问请大小发泃赛电池的幫电泟的工厇全吟..." autocomplete="off" autofocus>
+        <button class="search-btn" id="searchBtn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          搜索
+        </button>
+      </div>
+      <div class="search-hint">支持搜索：产品名称、材质参数、价格报价、订货规则、敽工安装等</div>
+    </div>
+
+    <div id="resultsArea" class="results-area" style="display:none">
+      <div class="results-summary">
+        <span id="resultsCount" class="results-count"></span>
+        <span class="results-query">搜索：<strong id="resultsQuery"></strong></span>
+      </div>
+      <div id="resultsList"></div>
+    </div>
+
+    <div id="emptyState" class="empty-state">
+      <div class="empty-icon">
+        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      </div>
+      <div class="empty-text">迓入产品相关问题，快速获取答案</div>
+      <div class="empty-sub">或点击下其中一款产哈查看</div>
+      <div class="product-tags-row" id="productTags"></div>
+    </div>
+
+    <div id="noResults" class="no-results" style="display:none">
+      <div class="no-results-icon">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><path d="m8 8 8 8M8 16l8-8"/></svg>
+      </div>
+      <div>未找到相关产品信息，请尝试其他关键词</div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <span>STEPS &copy; 2026</span>
+    <span> &nbsp; &middot; &nbsp; </span>
+    <span>内部资料系统</span>
+  </footer>
+</div>
+
+<div id="loading" class="loading-overlay" style="display:none">
+  <div class="spinner"></div>
+</div>
+
+<script>
+const el=id=>document.getElementById(id);
+var searchInput=el("searchInput"),searchBtn=el("searchBtn"),resultsArea=el("resultsArea"),resultsList=el("resultsList"),resultsCount=el("resultsCount"),resultsQuery=el("resultsQuery"),emptyState=el("emptyState"),noResults=el("noResults"),loading=el("loading"),productTags=el("productTags");
+let searchTimeout=null;
+const colors=["c1","c2","c3","c4"];
+const dotColors=["blue","emerald","amber","violet"];
+
+const escapeHtml=t=>{let d=document.createElement("div");d.textContent=t;return d.innerHTML};
+
+async function loadProductTags(){try{let r=await fetch("/api/products"),d=await r.json();productTags.innerHTML=d.products.map((p,i)=>'<span class="product-tag" data-query="'+p.name+'"><span class="tag-dot '+dotColors[i%4]+'"></span>'+p.name+"</span>").join("");document.querySelectorAll(".product-tag").forEach(t=>t.addEventListener("click",()=>{searchInput.value=t.dataset.query;doSearch()}))}catch(e){}}
+
+async function doSearch(){let q=searchInput.value.trim();if(!q){resultsArea.style.display="none";noResults.style.display="none";emptyState.style.display="";return}loading.style.display="flex";try{let r=await fetch("/api/search?q="+encodeURIComponent(q)),d=await r.json();loading.style.display="none";if(d.count===0){resultsArea.style.display="none";emptyState.style.display="none";noResults.style.display="";return}emptyState.style.display="none";noResults.style.display="none";resultsArea.style.display="";resultsCount.textContent="共找到 "+d.count+" 条相关问答";resultsQuery.textContent=d.query;resultsList.innerHTML=d.results.map((g,i)=>{let cards=g.entries.slice(0,8).map(e=>`
+<div class="result-card">
+  <div class="card-meta"><span class="card-badge">${escapeHtml(e.section)}</span></div>
+  <div class="card-q">$pescapeHtml(e.question)}</div>
+  <div class="card-a">${escapeHtml(e.answer).replace(/\n/g,"<br>")}</div>
+</div>`).join("");let more=g.entries.length>8?`<div class="card-more">还有 ${g.entries.length-8} 条相关问答未显示</div>`:"";return `
+<div class="product-group">
+  <div class="group-header">
+    <div class="group-color ${colors[i%4]}"></div>
+    <span class="group-name">${escapeHtml(g.product_name)}</span>
+    <span class="group-cat">${escapeHtml(g.product_category)}</span>
+    <span class="group-num">${g.entries.length} 条匹鍍</span>
+  </div>
+  ${cards}${more}
+</div>`;}).join("")}catch(e){loading.style.display="none"}}
+
+searchInput.addEventListener("input",()=>{clearTimeout(searchTimeout);searchTimeout=setTimeout(doSearch,300)});
+searchInput.addEventListener("keydown",e=>{if(e.key==="Enter"){clearTimeout(searchTimeout);doSearch()}});
+searchBtn.addEventListener("click",doSearch);
+loadProductTags();
+</script>
+</body>
+</html>
