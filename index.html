@@ -23,7 +23,7 @@ var all=[],pm={};
 var st=document.getElementById("status"),q=document.getElementById("q"),btn=document.getElementById("btn"),out=document.getElementById("out");
 async function load(){
  try{
-  var r=await fetch(SUPABASE_URL+"/rest/v1/qa_entries?select=*&limit=2000",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Accept":"application/json"}});
+  var r=await fetch(SUPABASE_URL+"/rest/v1/qa_entries?select=id,product_id,product_name,product_category,section,question,answer,tags&limit=500",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Accept":"application/json"}});
   var j=await r.json();
   all=j;
   j.forEach(function(e){if(!pm[e.product_id])pm[e.product_id]={name:e.product_name,cat:e.product_category}});
