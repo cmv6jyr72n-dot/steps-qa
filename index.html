@@ -1,27 +1,22 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>STEPS 产品问答系统</title>
 <link rel="stylesheet" href="static/style.css">
 </head>
 <body>
 <div class="app">
-  <header class="header">
-    <div class="logo-box"><div class="logo-icon">S</div><span class="logo-text">STEPS</span></div>
-    <div class="subtitle">Product Q&A System</div>
-  </header>
+  <header class="header"><div class="logo-box"><div class="logo-icon">S</div><span class="logo-text">STEPS</span></div><div class="subtitle">Product Q&A System</div></header>
   <main class="main">
-    <div class="hero"><h2>内部产品资料快速查找</h2><p>输入关键词，系统智能识别您的意图，精准返回相关答案</p></div>
+    <div class="hero"><h2>内部产品资料快速查找</h2><p>输入关键词，系统智能识别意图，精准返回答案</p></div>
     <div class="search-wrap">
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="试试搜索：起订量是多少？WPC是什么材质？价格怎么算？" autocomplete="off" autofocus>
+        <input type="text" id="searchInput" placeholder="搜索产品名称、价格、材质、起订量..." autocomplete="off" autofocus>
         <button class="search-btn" id="searchBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>搜 索</button>
       </div>
       <div class="search-hint">支持搜索：产品名称、材质参数、价格报价、订货规则、施工安装等</div>
     </div>
-    <div id="debug" style="display:none;background:#fef3c7;border:1px solid #f59e0b;border-radius:8px;padding:12px;margin:0 0 16px 0;font-size:12px;color:#92400e;font-family:monospace;max-height:200px;overflow:auto"></div>
     <div id="resultsArea" class="results-area" style="display:none">
       <div class="results-summary"><span id="resultsCount" class="results-count"></span><span class="results-query">搜索：<strong id="resultsQuery"></strong></span></div>
       <div id="resultsList"></div>
@@ -41,23 +36,19 @@
 <div id="loading" class="loading-overlay" style="display:none"><div class="spinner"></div></div>
 <script>
 
-var SUPABASE_URL="https://rstbdvgjgjscxuqzylzw.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdGJkdmdqZ2pzY3h1cXp5bHp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxMzY5NzUsImV4cCI6MjEwMDcxMjk3NX0.T59_xNg9rGd9OlhmevHc4-s_pka3mPjlL8rpzlsPJXs";
-function el(id){return document.getElementById(id)}
-function esc(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML}
-function log(msg){var dbg=el("debug");if(dbg){dbg.style.display="block";dbg.innerHTML+=msg+"<br>"}}
-var si=el("searchInput"),sb=el("searchBtn"),ra=el("resultsArea"),rl=el("resultsList");
-var rc=el("resultsCount"),rq=el("resultsQuery"),es=el("emptyState"),nr=el("noResults");
-var ld=el("loading"),pt=el("productTags"),dbg=el("debug");
-var st=null,colors=["c1","c2","c3","c4"],dc=["blue","emerald","amber","violet"],ad=[],pm=new Map();
-var TAG_CN={"pricing":"定价","specs":"规格","ordering":"订货","samples":"样品","installation":"施工","shipping":"物流","after_sales":"售后","customization":"定制","quality":"品质","advantages":"优势","certification":"认证","usage":"场景","insulation":"隔音","maintenance":"清洁","partnership":"合作","joints":"拼接","accessories":"配件","marketing":"宣传"};
-function showError(t){ld.style.display="none";es.style.display="none";nr.style.display="";nr.innerHTML='<div class="no-results-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m12 8v4m0 4h.01"/></svg></div><div style="color:#ef4444"><strong>加载失败</strong></div><div style="color:#94a3b8;font-size:12px;margin-top:8px">'+t+'</div><div style="margin-top:12px"><button onclick="location.reload()" style="background:#2563eb;color:#fff;border:none;padding:8px 20px;border-radius:8px;cursor:pointer;font-size:13px">重试</button></div>'}
-async function loadAllData(){try{var u=SUPABASE_URL+"/rest/v1/qa_entries?select=*&limit=1000";log("Fetching: "+u);var r=await fetch(u,{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Accept":"application/json"}});log("Response status: "+r.status);if(!r.ok){log("HTTP error: "+r.status);throw new Error("HTTP "+r.status)}var j=await r.json();log("Data received: "+(Array.isArray(j)?j.length+" entries":"not an array"));if(Array.isArray(j)&&j.length>0){ad=j;ad.forEach(function(row){if(!pm.has(row.product_id))pm.set(row.product_id,{id:row.product_id,name:row.product_name,cat:row.product_category})});log("Loaded "+ad.length+" entries, "+pm.size+" products");ld.style.display="none";renderProductTags()}else{throw new Error("No data returned")}}catch(e){log("ERROR: "+e.message);showError(e.message||"网络连接失败，请检查网络")}}
-function renderProductTags(){var arr=Array.from(pm.values());if(arr.length===0)return;pt.innerHTML=arr.map(function(p,i){return '<span class="product-tag" data-query="'+esc(p.name)+'"><span class="tag-dot '+dc[i%4]+'"></span>'+esc(p.name)+"</span>"}).join("");document.querySelectorAll(".product-tag").forEach(function(t){t.addEventListener("click",function(){si.value=t.dataset.query;doSearchLocal()})})}
-function tokenize(t){var m=t.match(/[一-鿿\w]+/g);return m?m.concat(m.filter(function(x){return x.length>2}).flatMap(function(x){var r=[];for(var i=0;i<x.length-1;i++)r.push(x.slice(i,i+2));return r})):[]}
-function doSearchLocal(){var q=si.value.trim();if(!q){ra.style.display="none";nr.style.display="none";es.style.display="";return}if(ad.length===0)return;var tokens=tokenize(q);if(tokens.length===0)return;var scored=ad.map(function(row){var score=0;var name=(row.product_name||"").toLowerCase();tokens.forEach(function(t){var tl=t.toLowerCase();if(name.indexOf(tl)>=0)score+=4});if(row.tags&&Array.isArray(row.tags)){row.tags.forEach(function(tag){var cn=TAG_CN[tag]||"";tokens.forEach(function(t){var tl=t.toLowerCase();if(cn.indexOf(tl)>=0||tag===tl)score+=4})})}var q1=(row.question||"").toLowerCase();tokens.forEach(function(t){var tl=t.toLowerCase();if(q1.indexOf(tl)>=0)score+=2});var a1=(row.answer||"").toLowerCase();tokens.forEach(function(t){var tl=t.toLowerCase();if(a1.indexOf(tl)>=0)score+=1});return{row:row,score:score}}).filter(function(s){return s.score>0});scored.sort(function(a,b){return b.score-a.score});if(scored.length===0){ra.style.display="none";es.style.display="none";nr.style.display="";return}es.style.display="none";nr.style.display="none";ra.style.display="";rc.textContent="共找到 "+scored.length+" 条相关问答";rq.textContent=q;var grouped={};scored.forEach(function(s){var pid=s.row.product_id;if(!grouped[pid]){grouped[pid]={product_name:s.row.product_name,product_category:s.row.product_category,entries:[]}}grouped[pid].entries.push(s.row)});var groups=Object.values(grouped);var gi=0;rl.innerHTML=groups.map(function(g){var cards=g.entries.slice(0,5).map(function(e){return '<div class="result-card"><div class="card-meta"><span class="card-badge">'+esc(e.section)+'</span></div><div class="card-q">'+esc(e.question)+'</div><div class="card-a">'+esc(e.answer).replace(/\n/g,"<br>")+"</div></div>"}).join("");var color=colors[gi%4];gi++;return '<div class="product-group"><div class="group-header"><div class="group-color '+color+'"></div><span class="group-name">'+esc(g.product_name)+'</span><span class="group-cat">'+esc(g.product_category)+'</span><span class="group-num">'+g.entries.length+" 条匹配</span></div>"+cards+"</div>"}).join("")}
-function doSearch(){if(ad.length===0){loadAllData().then(doSearchLocal)}else{doSearchLocal()}}
-si.addEventListener("input",function(){clearTimeout(st);st=setTimeout(doSearch,300)});
-si.addEventListener("keydown",function(e){if(e.key==="Enter"){clearTimeout(st);doSearch()}});
+const SUPABASE_URL="https://rstbdvgjgjscxuqzylzw.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdGJkdmdqZ2pzY3h1cXp5bHp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxMzY5NzUsImV4cCI6MjEwMDcxMjk3NX0.T59_xNg9rGd9OlhmevHc4-s_pka3mPjlL8rpzlsPJXs";
+const $=id=>document.getElementById(id);
+const esc=t=>{let d=document.createElement("div");d.textContent=t;return d.innerHTML};
+const si=$("searchInput"),sb=$("searchBtn"),ra=$("resultsArea"),rl=$("resultsList"),rc=$("resultsCount"),rq=$("resultsQuery"),es=$("emptyState"),nr=$("noResults"),ld=$("loading"),pt=$("productTags");
+let st=null,ad=[],pm=new Map();
+const colors=["c1","c2","c3","c4"],dc=["blue","emerald","amber","violet"];
+const TAG_CN={pricing:"定价",specs:"规格",ordering:"订货",samples:"样品",installation:"施工",shipping:"物流",after_sales:"售后",customization:"定制",quality:"品质",advantages:"优势",certification:"认证",usage:"场景",insulation:"隔音",maintenance:"清洁",partnership:"合作",joints:"拼接",accessories:"配件",marketing:"宣传"};
+async function loadAllData(){ld.style.display="flex";try{let r=await fetch(SUPABASE_URL+"/rest/v1/qa_entries?select=*&limit=1000",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Accept":"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);let j=await r.json();if(!Array.isArray(j)||j.length===0)throw new Error("无数据");ad=j;ad.forEach(e=>{if(!pm.has(e.product_id))pm.set(e.product_id,{id:e.product_id,name:e.product_name,cat:e.product_category})});ld.style.display="none";renderTags()}catch(e){ld.style.display="none";throw e}}
+function renderTags(){let arr=Array.from(pm.values());if(!arr.length)return;pt.innerHTML=arr.map((p,i)=>'<span class="product-tag" data-query="'+esc(p.name)+'"><span class="tag-dot '+dc[i%4]+'"></span>'+esc(p.name)+"</span>").join("");document.querySelectorAll(".product-tag").forEach(t=>t.addEventListener("click",()=>{si.value=t.dataset.query;doSearch()}))}
+function tokenize(t){let m=t.match(/[一-鿿\w]+/g)||[];let r=m.slice();m.forEach(x=>{if(x.length>2)for(let i=0;i<x.length-1;i++)r.push(x.slice(i,i+2))});return r}
+function doSearch(){let q=si.value.trim();if(!q){ra.style.display="none";nr.style.display="none";es.style.display="";return}if(!ad.length)return;let tokens=tokenize(q);if(!tokens.length)return;let scored=ad.map(row=>{let s=0,n=(row.product_name||"").toLowerCase();tokens.forEach(t=>{let tl=t.toLowerCase();if(n.indexOf(tl)>=0)s+=4});if(row.tags&&Array.isArray(row.tags))row.tags.forEach(tag=>{let cn=TAG_CN[tag]||"";tokens.forEach(t=>{let tl=t.toLowerCase();if(cn.indexOf(tl)>=0||tag===tl)s+=4})});let q1=(row.question||"").toLowerCase();tokens.forEach(t=>{let tl=t.toLowerCase();if(q1.indexOf(tl)>=0)s+=2});let a1=(row.answer||"").toLowerCase();tokens.forEach(t=>{let tl=t.toLowerCase();if(a1.indexOf(tl)>=0)s+=1});return{row,score:s}}).filter(x=>x.score>0);scored.sort((a,b)=>b.score-a.score);if(!scored.length){ra.style.display="none";es.style.display="none";nr.style.display="";return}es.style.display="none";nr.style.display="none";ra.style.display="";rc.textContent="共找到 "+scored.length+" 条相关问答";rq.textContent=q;let grouped={};scored.forEach(s=>{let pid=s.row.product_id;if(!grouped[pid])grouped[pid]={product_name:s.row.product_name,product_category:s.row.product_category,entries:[]};grouped[pid].entries.push(s.row)});let groups=Object.values(grouped),gi=0;rl.innerHTML=groups.map(g=>{let cards=g.entries.slice(0,5).map(e=>'<div class="result-card"><div class="card-meta"><span class="card-badge">'+esc(e.section)+'</span></div><div class="card-q">'+esc(e.question)+'</div><div class="card-a">'+esc(e.answer).replace(/\n/g,"<br>")+"</div></div>").join("");let color=colors[gi%4];gi++;return '<div class="product-group"><div class="group-header"><div class="group-color '+color+'"></div><span class="group-name">'+esc(g.product_name)+'</span><span class="group-cat">'+esc(g.product_category)+'</span><span class="group-num">'+g.entries.length+" 条匹配</span></div>"+cards+"</div>"}).join("")}
+si.addEventListener("input",()=>{clearTimeout(st);st=setTimeout(doSearch,300)});
+si.addEventListener("keydown",e=>{if(e.key==="Enter"){clearTimeout(st);doSearch()}});
 sb.addEventListener("click",doSearch);
 loadAllData();
 </script>
