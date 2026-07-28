@@ -4,6 +4,7 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>STEPS 产品问答系统</title>
 <link rel="stylesheet" href="static/style.css">
+<style>.tchip{display:inline-block;padding:1px 8px;background:#eff6ff;color:#2563eb;border-radius:4px;font-size:11px;font-weight:500;margin:2px}.tag-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.truncated{color:#2563eb;cursor:pointer;font-size:12px}</style>
 </head>
 <body>
 <div class="app">
@@ -38,26 +39,85 @@ var $=function(id){return document.getElementById(id)};
 var esc=function(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML};
 var si=$("searchInput"),sb=$("searchBtn"),ra=$("resultsArea"),rl=$("resultsList"),rc=$("resultsCount"),es=$("emptyState"),nr=$("noResults");
 var st=null;
+// Stop words - filtered from scoring
+var STOP=["怎么","什么","这个","那个","哪些","如何","是不是","能否","是否","可以","有没有","你们","我们"];
+// Synonym groups - all words in a group map to each other
+var SYN=[
+ ["价格","售价","定价","报价","单价","多少钱","费用","什么价","收费","价位"],
+ ["尺寸","规格","大小","长宽","厚度","宽度","高度","多重","多厚","多大","重量"],
+ ["材质","材料","原料","成分","什么材","什么料","什么做"],
+ ["安装","施工","铺贴","怎么装","怎么安","怎么贴","怎么施工","上墙"],
+ ["起订","起订量","订货","下单","采购","最低","至少","最少","MOQ","流程","怎么买"],
+ ["交期","交货","生产周期","多久","排产","发货时间"],
+ ["颜色","花色","纹路","色调","配色","选色","什么色"],
+ ["物流","运输","运费","包装","发货","到货","怎么运"],
+ ["质量","品质","质检","色差","合格","标准"],
+ ["质保","售后","保修","退换","寿命","能用多久","保多久"],
+ ["定制","开模","调色","定做","能不能做","可以定"],
+ ["清洁","维护","保养","怎么洗","怎么擦","怎么打理"],
+ ["样品","样板","小样","寄样","色卡"],
+ ["优势","卖点","特点","好处","为什么选"],
+ ["证书","环保","防火","防水","认证","检测","ISO"],
+ ["场景","适用","用在","室内","户外","适合","能不能用"],
+ ["资料","图片","效果图","案例","视频","画册"]
+];
+// Tag display names
+var TAG_CN={pricing:"定价",specs:"规格",ordering:"订货",samples:"样品",installation:"安装",shipping:"物流",after_sales:"售后",customization:"定制",quality:"品质",advantages:"优势",certification:"认证",usage:"场景",insulation:"隔音",maintenance:"清洁",partnership:"合作",joints:"拼接",accessories:"配件",marketing:"资料"};
 function tokenize(t){
  var m=t.match(/[^\s,.!?;:，。！？；：]+/g)||[];
- var r=m.slice();
- m.forEach(function(x){if(x.length>1)for(var i=0;i<x.length-1;i++)r.push(x.slice(i,i+2))});
+ var r=[];
+ m.forEach(function(x){r.push(x);if(x.length>1)for(var i=0;i<x.length-1;i++)r.push(x.slice(i,i+2))});
  return r
+}
+function expand(tokens){
+ var seen={},result=[];
+ tokens.forEach(function(t){
+  if(seen[t])return;seen[t]=1;result.push(t);
+  for(var g=0;g<SYN.length;g++){
+   var group=SYN[g];
+   for(var w=0;w<group.length;w++){
+    if(t.indexOf(group[w])>=0||group[w].indexOf(t)>=0){
+     for(var k=0;k<group.length;k++){if(!seen[group[k]]){seen[group[k]]=1;result.push(group[k])}}
+     break
+    }
+   }
+  }
+ });
+ return result
 }
 function doSearch(){
  var q=si.value.trim();
  if(!q){ra.style.display="none";nr.style.display="none";es.style.display="";return}
  var tokens=tokenize(q);
+ // Filter stop words from scoring
+ var meaningful=tokens.filter(function(t){for(var i=0;i<STOP.length;i++){if(t.indexOf(STOP[i])>=0)return false}return true});
+ var expanded=expand(meaningful);
  var scored=ALL.map(function(e){
   var s=0;
   var pn=(e.product_name||"").toLowerCase();
   var qu=(e.question||"").toLowerCase();
   var an=(e.answer||"").toLowerCase();
-  for(var i=0;i<tokens.length;i++){
-   var t=tokens[i].toLowerCase();
-   if(pn.indexOf(t)>=0)s+=4;
-   if(qu.indexOf(t)>=0)s+=2;
-   if(an.indexOf(t)>=0)s+=1
+  for(var i=0;i<expanded.length;i++){
+   var t=expanded[i].toLowerCase();
+   if(t.length<2)continue;
+   if(pn.indexOf(t)>=0)s+=2;    // product match: reduced from 4
+   if(qu.indexOf(t)>=0)s+=2;    // question match
+   if(an.indexOf(t)>=0)s+=1     // answer match
+  }
+  // Intent tag boosting: if entry tags match any synonym group intent
+  if(e.tags&&Array.isArray(e.tags)){
+   for(var j=0;j<e.tags.length;j++){
+    for(var g=0;g<SYN.length;g++){
+     for(var w=0;w<SYN[g].length;w++){
+      for(var k=0;k<expanded.length;k++){
+       if(expanded[k].indexOf(SYN[g][w])>=0||SYN[g][w].indexOf(expanded[k])>=0){
+        if(e.tags[j]===SYN[g][0]||TAG_CN[e.tags[j]])s+=6;
+        break
+       }
+      }
+     }
+    }
+   }
   }
   return{row:e,score:s}
  }).filter(function(x){return x.score>0});
@@ -68,7 +128,11 @@ function doSearch(){
  var grouped={};
  scored.forEach(function(s){var p=s.row.product_id;if(!grouped[p])grouped[p]={name:s.row.product_name,entries:[]};grouped[p].entries.push(s.row)});
  rl.innerHTML=Object.values(grouped).map(function(g){
-  return '<div class="product-group"><div class="group-header"><span class="group-name">'+esc(g.name)+'</span><span class="group-num">'+g.entries.length+"条</span></div>"+g.entries.slice(0,10).map(function(e){return '<div class="result-card"><div class="card-q">'+esc(e.question)+'</div><div class="card-a">'+esc(e.answer).replace(/\n/g,"<br>")+"</div></div>"}).join("")+"</div>"
+  return '<div class="product-group"><div class="group-header"><span class="group-name">'+esc(g.name)+'</span><span class="group-num">'+g.entries.length+"条</span></div>"+g.entries.slice(0,8).map(function(e){
+   var chips="";if(e.tags&&Array.isArray(e.tags)&&e.tags.length)chips='<div class="tag-chips">'+e.tags.slice(0,4).map(function(t){return '<span class="tchip">'+esc(TAG_CN[t]||t)+'</span>'}).join("")+'</div>';
+   var a=esc(e.answer).replace(/\n/g,"<br>");if(e.answer.length>200)a=esc(e.answer.substring(0,200))+'<span class="truncated" onclick="var n=this.nextElementSibling;n.style.display=n.style.display=='none'?'inline':'none';this.style.display='none'">...展开</span><span style="display:none">'+esc(e.answer.substring(200)).replace(/\n/g,"<br>")+'</span>';
+   return '<div class="result-card"><div class="card-meta"><span class="card-badge">'+esc(e.section)+'</span></div>'+chips+'<div class="card-q">'+esc(e.question)+'</div><div class="card-a">'+a+"</div></div>"
+  }).join("")+"</div>"
  }).join("")
 }
 si.addEventListener("input",function(){clearTimeout(st);st=setTimeout(doSearch,300)});
