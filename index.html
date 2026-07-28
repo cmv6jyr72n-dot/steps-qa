@@ -4,23 +4,18 @@
 <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>STEPS 产品问答系统</title>
 <link rel="stylesheet" href="static/style.css">
-<style>
-.tag-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}
-.tchip{display:inline-block;padding:1px 8px;background:#eff6ff;color:#2563eb;border-radius:4px;font-size:11px;font-weight:500}
-.truncated{color:#2563eb;cursor:pointer;font-size:12px;text-decoration:underline}
-</style>
+<style>.tchip{display:inline-block;padding:1px 8px;background:#eff6ff;color:#2563eb;border-radius:4px;font-size:11px;font-weight:500;margin:2px}.tag-chips{display:flex;flex-wrap:wrap;gap:4px;margin:6px 0}.truncated{color:#2563eb;cursor:pointer;text-decoration:underline;font-size:12px}</style>
 </head>
 <body>
 <div class="app">
   <header class="header"><div class="logo-box"><div class="logo-icon">S</div><span class="logo-text">STEPS</span></div><div class="subtitle">Product Q&A System</div></header>
   <main class="main">
-    <div class="hero"><h2>内部产品资料快速查找</h2><p>输入产品名+关键词，精准定位答案</p></div>
+    <div class="hero"><h2>内部产品资料快速查找</h2><p>输入"产品名 + 关键词"，精确定位答案</p></div>
     <div class="search-wrap">
       <div class="search-box">
-        <input type="text" id="searchInput" placeholder="例如：亚克力板 价格、石膏灯 材质、法国纹理纸 尺寸" autocomplete="off" autofocus>
+        <input type="text" id="searchInput" placeholder='例如：亚克力板 价格、石膏灯 材质、法国纹理纸 尺寸' autocomplete="off" autofocus>
         <button class="search-btn" id="searchBtn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>搜 索</button>
       </div>
-      <div class="search-hint">提示：先输产品名再加关键词，如“亚克力板 价格”“石膏灯 材质”</div>
     </div>
     <div id="resultsArea" class="results-area" style="display:none">
       <div class="results-summary"><span id="resultsCount" class="results-count"></span><span class="results-query">搜索：<strong id="resultsQuery"></strong></span></div>
@@ -28,65 +23,55 @@
     </div>
     <div id="emptyState" class="empty-state">
       <div class="empty-icon"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg></div>
-      <div class="empty-text">输入产品相关问题，快速获取答案</div><div class="empty-sub">或点击下方产品查看</div>
+      <div class="empty-text">已加载 <strong id="loadedCount">0</strong> 条问答</div>
       <div class="product-tags-row" id="productTags"></div>
     </div>
     <div id="noResults" class="no-results" style="display:none">
       <div class="no-results-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><path d="m8 8 8 8M8 16l8-8"/></svg></div>
-      <div>未找到相关产品信息，请尝试其他关键词</div>
+      <div>未找到相关产品信息</div>
     </div>
   </main>
   <footer class="footer"><span>STEPS &copy; 2026</span><span> &nbsp; &middot; &nbsp; </span><span>内部资料系统</span></footer>
 </div>
 <div id="loading" class="loading-overlay" style="display:none"><div class="spinner"></div></div>
 <script>
-
-const SUPABASE_URL="https://rstbdvgjgjscxuqzylzw.supabase.co",SUPABASE_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdGJkdmdqZ2pzY3h1cXp5bHp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxMzY5NzUsImV4cCI6MjEwMDcxMjk3NX0.T59_xNg9rGd9OlhmevHc4-s_pka3mPjlL8rpzlsPJXs";
-const $=id=>document.getElementById(id);
-const esc=t=>{let d=document.createElement("div");d.textContent=t;return d.innerHTML};
-const si=$("searchInput"),sb=$("searchBtn"),ra=$("resultsArea"),rl=$("resultsList"),rc=$("resultsCount"),rq=$("resultsQuery"),es=$("emptyState"),nr=$("noResults"),ld=$("loading"),pt=$("productTags");
-let st=null,ad=[],pm=new Map();
-const dc=["blue","emerald","amber","violet"];
-const TAG_CN={pricing:"定价",specs:"规格",ordering:"订货",samples:"样品",installation:"施工",shipping:"物流",after_sales:"售后",customization:"定制",quality:"品质",advantages:"优势",certification:"认证",usage:"场景",insulation:"隔音",maintenance:"清洁",partnership:"合作",joints:"拼接",accessories:"配件",marketing:"宣传"};
-const INTENT_WORDS={"价格":"pricing","报价":"pricing","多少钱":"pricing","价":"pricing","卖":"pricing","起订":"ordering","订货":"ordering","下单":"ordering","定金":"ordering","尾款":"ordering","材质":"specs","规格":"specs","厚度":"specs","尺寸":"specs","重量":"specs","施工":"installation","安装":"installation","样品":"samples","样板":"samples","运费":"shipping","包装":"shipping","物流":"shipping","定制":"customization","颜色":"customization","开模":"customization","质保":"after_sales","寿命":"after_sales","验收":"after_sales","优势":"advantages","卖点":"advantages","证书":"certification","环保":"certification","防火":"certification","清洁":"maintenance","打理":"maintenance"};
-async function loadAllData(){ld.style.display="flex";try{let r=await fetch(SUPABASE_URL+"/rest/v1/qa_entries?select=*&limit=2000",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Accept":"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);let j=await r.json();if(!Array.isArray(j)||j.length===0)throw new Error("无数据");ad=j;ad.forEach(e=>{if(!pm.has(e.product_id))pm.set(e.product_id,{id:e.product_id,name:e.product_name,cat:e.product_category})});ld.style.display="none";renderTags()}catch(e){ld.style.display="none";nr.style.display="";nr.innerHTML='<div class="no-results-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path d="m12 8v4m0 4h.01"/></svg></div><div style="color:#ef4444"><strong>加载失败</strong></div><div style="color:#94a3b8;font-size:12px;margin-top:8px">请刷新页面</div>'}}
-function renderTags(){let arr=Array.from(pm.values());if(!arr.length)return;pt.innerHTML=arr.map((p,i)=>'<span class="product-tag" data-query="'+esc(p.name)+'"><span class="tag-dot '+dc[i%4]+'"></span>'+esc(p.name)+"</span>").join("");document.querySelectorAll(".product-tag").forEach(t=>t.addEventListener("click",()=>{si.value=t.dataset.query;doSearch()}))}
-function tokenize(t){let m=t.match(/[一-鿿\w]+/g)||[];let r=m.slice();m.forEach(x=>{if(x.length>2)for(let i=0;i<x.length-1;i++)r.push(x.slice(i,i+2))});return r}
-function detectProduct(q){let best=null,bl=0;pm.forEach((p,pid)=>{let n=p.name.toLowerCase();q.split(/\s+/).forEach(w=>{if(n.includes(w.toLowerCase())&&w.length>bl){best=pid;bl=w.length}})});return best}
-function detectIntent(q){for(let[k,v]of Object.entries(INTENT_WORDS)){if(q.includes(k))return v}return null}
-function doSearch(){let q=si.value.trim();if(!q){ra.style.display="none";nr.style.display="none";es.style.display="";return}if(!ad.length)return;let tokens=tokenize(q);if(!tokens.length)return;
-// STEP 1: Detect product name in query
-let matchedPid=detectProduct(q);
-// STEP 2: Detect intent
-let intent=detectIntent(q);
-// STEP 3: Score entries
-let results=ad.map(row=>{let s=0;let n=(row.product_name||"").toLowerCase();
-// Product name match
-if(matchedPid&&row.product_id===matchedPid)s+=10;
-else if(!matchedPid){tokens.forEach(t=>{let tl=t.toLowerCase();if(n.indexOf(tl)>=0)s+=6})};
-// Intent matching
-if(intent&&row.tags&&Array.isArray(row.tags)&&row.tags.includes(intent))s+=8;
-// Tag matching
-if(row.tags&&Array.isArray(row.tags))row.tags.forEach(tag=>{let cn=TAG_CN[tag]||"";tokens.forEach(t=>{let tl=t.toLowerCase();if(cn.indexOf(tl)>=0||tag===tl)s+=4})});
-// Question matching
-let q1=(row.question||"").toLowerCase();tokens.forEach(t=>{let tl=t.toLowerCase();if(q1.indexOf(tl)>=0)s+=2});
-// Answer matching
-let a1=(row.answer||"").toLowerCase();tokens.forEach(t=>{let tl=t.toLowerCase();if(a1.indexOf(tl)>=0)s+=1});
-return{row,score:s}}).filter(x=>x.score>0);
-// STEP 4: Strict filter - if product detected, ONLY show that product
-if(matchedPid)results=results.filter(x=>x.row.product_id===matchedPid);
-results.sort((a,b)=>b.score-a.score);
+var SUPABASE_URL=https://rstbdvgjgjscxuqzylzw.supabase.co",SUPABASE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJzdGJkdmdqZ2pzY3h1cXp5bHp3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODUxMzY5NzUsImV4cCI6MjEwMDcxMjk3NX0.T59_xNg9rGd9OlhmevHc4-s_pka3mPjlL8rpzlsPJXs";
+var $=function(id){return document.getElementById(id)};
+var esc=function(t){var d=document.createElement("div");d.textContent=t;return d.innerHTML};
+var si=$("searchInput"),sb=$("searchBtn"),ra=$("resultsArea"),rl=$("resultsList"),rc=$("resultsCount"),rq=$("resultsQuery"),es=$("emptyState"),nr=$("noResults"),ld=$("loading"),pt=$("productTags");
+var st=null,ad=[],pm={},pnList=[];
+var dc=["blue","emerald","amber","violet"];
+var TAG_CN={pricing:"定价",specs:"规格",ordering:"订货",samples:"样品",installation:"施工",shipping:"物流",after_sales:"售后",customization:"定制",quality:"品质",advantages:"优势",certification:"认证",usage:"场景",insulation:"隔音",maintenance:"清洁",partnership:"合作",joints:"拼接",accessories:"配件",marketing:"宣传"};
+var INTENT_WORDS={价格:"pricing",报价:"pricing",多少钱:"pricing",价:"pricing",起订:"ordering",订货:"ordering",下单:"ordering",定金:"ordering",尾款:"ordering",材质:"specs",规格:"specs",厚度:"specs",尺寸:"specs",重量:"specs",施工:"installation",安装:"installation",样品:"samples",样板:"samples",运费:"shipping",包装:"shipping",物流:"shipping",定制:"customization",颜色:"customization",开模:"customization",质保:"after_sales",寿命:"after_sales",验收:"after_sales",优势:"advantages",卖点:"advantages",证书:"certification",环保:"certification",防火:"certification",清洁:"maintenance",打理:"maintenance"};
+async function loadAllData(){ld.style.display="flex";try{var r=await fetch(SUPABASE_URL+"/rest/v1/qa_entries?select=*&limit=2000",{headers:{"apikey":SUPABASE_KEY,"Authorization":"Bearer "+SUPABASE_KEY,"Accept":"application/json"}});if(!r.ok)throw new Error("HTTP "+r.status);var j=await r.json();if(!Array.isArray(j)||!j.length)throw new Error("无数据");ad=j;var seen={};ad.forEach(function(e){if(!pm[e.product_id]){pm[e.product_id]={id:e.product_id,name:e.product_name,cat:e.product_category};pnList.push(e.product_name)}});ld.style.display="none";$("loadedCount").textContent=ad.length;renderTags()}catch(e){ld.style.display="none";$("loadedCount").textContent="加载失败: "+e.message}}
+function renderTags(){var arr=Object.values(pm);if(!arr.length)return;pt.innerHTML=arr.map(function(p,i){return '<span class="product-tag" data-query="'+esc(p.name)+'"><span class="tag-dot '+dc[i%4]+'"></span>'+esc(p.name)+"</span>"}).join("");document.querySelectorAll(".product-tag").forEach(function(t){t.addEventListener("click",function(){si.value=t.dataset.query;doSearch()})})}
+function tokenize(t){var m=t.match(/[一-鿿\w]+/g)||[];var r=m.slice();m.forEach(function(x){if(x.length>2)for(var i=0;i<x.length-1;i++)r.push(x.slice(i,i+2))});return r}
+function detectProduct(q){var best=null,bl=0;pnList.forEach(function(n){q.split(/\s+/).forEach(function(w){if(n.includes(w)&&w.length>bl){best=n;bl=w.length}})});return best}
+function detectIntent(q){for(var k in INTENT_WORDS){if(q.indexOf(k)>=0)return INTENT_WORDS[k]}return null}
+function doSearch(){var q=si.value.trim();if(!q){ra.style.display="none";nr.style.display="none";es.style.display="";return}if(!ad.length)return;var tokens=tokenize(q);if(!tokens.length)return;
+var matchedName=detectProduct(q);
+var intent=detectIntent(q);
+var results=ad.map(function(row){var s=0;var n=(row.product_name||"").toLowerCase();
+if(matchedName&&row.product_name===matchedName)s+=10;
+else if(!matchedName){tokens.forEach(function(t){var tl=t.toLowerCase();if(n.indexOf(tl)>=0)s+=6})}
+if(intent&&row.tags&&Array.isArray(row.tags)&&row.tags.indexOf(intent)>=0)s+=8;
+if(row.tags&&Array.isArray(row.tags))row.tags.forEach(function(tag){var cn=TAG_CN[tag]||"";tokens.forEach(function(t){var tl=t.toLowerCase();if(cn.indexOf(tl)>=0||tag===tl)s+=4})});
+var q1=(row.question||"").toLowerCase();tokens.forEach(function(t){var tl=t.toLowerCase();if(q1.indexOf(tl)>=0)s+=2});
+var a1=(row.answer||"").toLowerCase();tokens.forEach(function(t){var tl=t.toLowerCase();if(a1.indexOf(tl)>=0)s+=1});
+return{row:row,score:s}}).filter(function(x){return x.score>0});
+if(matchedName)results=results.filter(function(x){return x.row.product_name===matchedName});
+results.sort(function(a,b){return b.score-a.score});
 if(!results.length){ra.style.display="none";es.style.display="none";nr.style.display="";return}
 es.style.display="none";nr.style.display="none";ra.style.display="";
-rc.textContent=matchedPid?"仅显示 "+pm.get(matchedPid).name+"，共 "+results.length+" 条":"共找到 "+results.length+" 条相关问答";rq.textContent=q;
-let grouped={};results.forEach(s=>{let pid=s.row.product_id;if(!grouped[pid])grouped[pid]={product_name:s.row.product_name,product_category:s.row.product_category,entries:[]};grouped[pid].entries.push(s.row)});
-let groups=Object.values(grouped),gi=0;
-rl.innerHTML=groups.map(g=>{let entries=g.entries.slice(0,8);let cards=entries.map(e=>{
-let tagChips="";if(e.tags&&Array.isArray(e.tags)&&e.tags.length)tagChips='<div class="tag-chips">'+e.tags.slice(0,4).map(t=>'<span class="tchip">'+esc(TAG_CN[t]||t)+'</span>').join("")+'</div>';
-let a=esc(e.answer).replace(/\n/g,"<br>");if(e.answer.length>200)a=esc(e.answer.substring(0,200))+"<span class="truncated" onclick="var t=this.nextElementSibling;t.style.display=t.style.display==='none'?'inline':'none';this.style.display='none'">...展开</span><span class="full-answer" style="display:none">"+esc(e.answer.substring(200)).replace(/\n/g,"<br>")+"</span>";
-return '<div class="result-card"><div class="card-meta"><span class="card-badge">'+esc(e.section)+'</span></div>'+tagChips+'<div class="card-q">'+esc(e.question)+'</div><div class="card-a">'+a+"</div></div>"}).join("");let color=["c1","c2","c3","c4"][gi%4];gi++;return '<div class="product-group"><div class="group-header"><div class="group-color '+color+'"></div><span class="group-name">'+esc(g.product_name)+'</span><span class="group-cat">'+esc(g.product_category)+'</span><span class="group-num">'+g.entries.length+"条</span></div>"+cards+"</div>"}).join("")}
-si.addEventListener("input",()=>{clearTimeout(st);st=setTimeout(doSearch,300)});
-si.addEventListener("keydown",e=>{if(e.key==="Enter"){clearTimeout(st);doSearch()}});
+rc.textContent=matchedName?"仅显示 "+matchedName+"，共 "+results.length+" 条":"共找到 "+results.length+" 条相关问答";rq.textContent=q;
+var grouped={};results.forEach(function(s){var pid=s.row.product_id;if(!grouped[pid])grouped[pid]={product_name:s.row.product_name,product_category:s.row.product_category,entries:[]};grouped[pid].entries.push(s.row)});
+var groups=Object.values(grouped),gi=0;
+rl.innerHTML=groups.map(function(g){var entries=g.entries.slice(0,8);var cards=entries.map(function(e){
+var chips="";if(e.tags&&Array.isArray(e.tags)&&e.tags.length)chips='<div class="tag-chips">'+e.tags.slice(0,4).map(function(t){return '<span class="tchip">'+esc(TAG_CN[t]||t)+'</span>'}).join("")+'</div>';
+var a=esc(e.answer).replace(/\n/g,"<br>");if(e.answer.length>200)a=esc(e.answer.substring(0,200))+'<span class="truncated" onclick="var x=this.nextElementSibling;var v=x.style.display;x.style.display=v==='none'?'inline':'none';this.style.display=v==='none'?'none':'inline'">...展开</span><span style="display:none">'+esc(e.answer.substring(200)).replace(/\n/g,"<br>")+'</span>';
+return '<div class="result-card"><div class="card-meta"><span class="card-badge">'+esc(e.section)+'</span></div>'+chips+'<div class="card-q">'+esc(e.question)+'</div><div class="card-a">'+a+"</div></div>"}).join("");var color=["c1","c2","c3","c4"][gi%4];gi++;return '<div class="product-group"><div class="group-header"><div class="group-color '+color+'"></div><span class="group-name">'+esc(g.product_name)+'</span><span class="group-cat">'+esc(g.product_category)+'</span><span class="group-num">'+g.entries.length+"条</span></div>"+cards+"</div>"}).join("")}
+si.addEventListener("input",function(){clearTimeout(st);st=setTimeout(doSearch,300)});
+si.addEventListener("keydown",function(e){if(e.key==="Enter"){clearTimeout(st);doSearch()}});
 sb.addEventListener("click",doSearch);
 loadAllData();
 </script>
